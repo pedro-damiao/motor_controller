@@ -55,7 +55,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
-
+uint32_t SPI_ReadRegister(uint8_t address);
+uint8_t calculate_crc8(uint32_t data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -66,6 +67,76 @@ int _write(int file, char *ptr, int len) {
   for(i=0 ; i<len ; i++)
     ITM_SendChar((*ptr++));
   return len;
+}
+
+// CRC-8 calculation based on polynomial 0x8E and left bit shift
+uint8_t calculate_crc8(uint32_t data)
+{
+    uint8_t crc = 0x00;  // Initial value is 0x00
+    uint8_t poly = 0x8E; // Polynomial x^8 + x^4 + x^3 + x^2 + 1
+
+    // Operate on bits 39-8 (32 bits total) in the data
+    for (int i = 31; i >= 0; i--) {
+        uint8_t bit = (data >> i) & 0x01;  // Get current bit
+        crc ^= (bit << 7);                 // XOR the highest bit
+
+        // Perform 8-bit CRC calculation
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ poly;   // XOR with polynomial if MSB is 1
+            } else {
+                crc <<= 1;                 // Left shift if MSB is 0
+            }
+        }
+    }
+
+    return crc;
+}
+
+uint32_t SPI_ReadRegister(uint8_t address)
+{
+    uint32_t command = 0x00000000;  // Initialize command
+    command |= (0x0 << 39);         // Set bit39 (RW) to 0 for read
+    command |= ((address & 0x7F) << 32);  // Set bits 38-32 for address
+
+    // Calculate CRC for bits 39-8 (command part without CRC)
+    uint8_t crc = calculate_crc8(command);
+
+    // Send 40 bits (5 bytes: 32-bit command + 8-bit CRC)
+    uint8_t tx_data[5];
+    tx_data[0] = (command >> 32) & 0xFF;  // Byte 4 (bits 39-32)
+    tx_data[1] = (command >> 24) & 0xFF;  // Byte 3 (bits 31-24)
+    tx_data[2] = (command >> 16) & 0xFF;  // Byte 2 (bits 23-16)
+    tx_data[3] = (command >> 8) & 0xFF;   // Byte 1 (bits 15-8)
+    tx_data[4] = crc;                     // CRC byte
+
+    // Transmit the command over SPI
+    for (int i = 0; i < 5; i++) {
+        while (!LL_SPI_IsActiveFlag_TXE(SPI1));  // Wait for TX buffer to be empty
+        LL_SPI_TransmitData8(SPI1, tx_data[i]);  // Send byte
+
+        while (!LL_SPI_IsActiveFlag_RXNE(SPI1)); // Wait for reception
+        LL_SPI_ReceiveData8(SPI1);               // Dummy read to clear RXNE
+    }
+
+    // Now receive 40 bits of response (5 bytes)
+    uint8_t rx_data[5] = {0};
+    for (int i = 0; i < 5; i++) {
+        while (!LL_SPI_IsActiveFlag_TXE(SPI1));  // Wait for TX buffer to be empty
+        LL_SPI_TransmitData8(SPI1, 0x00);        // Dummy byte to receive
+
+        while (!LL_SPI_IsActiveFlag_RXNE(SPI1)); // Wait for reception
+        rx_data[i] = LL_SPI_ReceiveData8(SPI1);  // Read byte
+    }
+
+    // Combine the response into a 32-bit value (bits 31-8)
+    uint32_t received_data = 0;
+    received_data |= (rx_data[1] << 24);
+    received_data |= (rx_data[2] << 16);
+    received_data |= (rx_data[3] << 8);
+    received_data |= rx_data[4];  // CRC byte can be validated separately
+
+    return received_data;
 }
 /* USER CODE END 0 */
 
@@ -132,6 +203,13 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+
+  // The register address you want to read from (for example, 0x05)
+  uint8_t register_address = 0x05;
+
+  // Read from the specified register
+  uint32_t received_data = SPI_ReadRegister(register_address);
   while (1)
   {
 	// Check if the blink interval has elapsed
