@@ -204,9 +204,9 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-
+  LL_SPI_Enable(SPI2);
   // The register address you want to read from (for example, 0x05)
-  uint8_t register_address = 0x05;
+  uint8_t register_address = 0x01;
 
   // Read from the specified register
   uint32_t received_data = SPI_ReadRegister(register_address);
@@ -493,6 +493,9 @@ static void MX_GPIO_Init(void)
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
 
   /**/
+  LL_GPIO_SetOutputPin(CS_SPI_GPIO_Port, CS_SPI_Pin);
+
+  /**/
   LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
 
   /**/
@@ -515,20 +518,20 @@ static void MX_GPIO_Init(void)
   LL_GPIO_SetPinMode(B1_GPIO_Port, B1_Pin, LL_GPIO_MODE_INPUT);
 
   /**/
+  GPIO_InitStruct.Pin = CS_SPI_Pin|SLP_Pin|EN1_Pin|EN2_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /**/
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
-
-  /**/
-  GPIO_InitStruct.Pin = SLP_Pin|EN1_Pin|EN2_Pin;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /**/
   GPIO_InitStruct.Pin = LL_GPIO_PIN_6|LL_GPIO_PIN_7;
